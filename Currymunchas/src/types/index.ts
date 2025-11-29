@@ -7,10 +7,12 @@ export interface User {
   role: UserRole;
   name: string;
   createdAt: Date;
+  isVIP?: boolean; // Only for customers
 }
 
 export interface Customer extends User {
-  role: 'customer' | 'vip';
+  role: 'customer';
+  isVIP: boolean;
   accountBalance: number;
   totalSpent: number;
   orderCount: number;
@@ -27,7 +29,9 @@ export interface Employee extends User {
   hireDate: Date;
   complaints: string[];
   compliments: string[];
-  status: 'active' | 'demoted' | 'fired';
+  status: 'active' | 'demoted' | 'fired' | 'inactive';
+  demotionCount?: number; // Number of times employee has been demoted
+  warnings?: Warning[]; // Warnings for employees
 }
 
 export interface Chef extends Employee {
@@ -91,6 +95,15 @@ export interface Order {
   chefId?: string;
   deliveryPersonId?: string;
   deliveryBids: DeliveryBid[];
+  deliveryInfo?: {
+    streetAddress: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    phoneNumber: string;
+    deliveryInstructions?: string;
+  };
+  tipAmount?: number;
   createdAt: Date;
   deliveredAt?: Date;
 }
@@ -188,11 +201,15 @@ export interface HRAction {
   id: string;
   managerId: string;
   targetId: string;
-  actionType: 'hire' | 'fire' | 'raise' | 'cut_pay' | 'promote' | 'demote' | 'bonus';
+  actionType: 'hire' | 'fire' | 'raise' | 'cut_pay' | 'promote' | 'demote' | 'bonus' | 'delivery_bid_override';
   previousSalary?: number;
   newSalary?: number;
   reason: string;
   memo?: string;
+  // For delivery bid overrides
+  orderId?: string;
+  lowestBidAmount?: number;
+  chosenBidAmount?: number;
   timestamp: Date;
 }
 
@@ -224,4 +241,30 @@ export interface Transaction {
   orderId?: string;
   description: string;
   timestamp: Date;
+}
+
+// Feedback Types
+export interface Feedback {
+  id: string;
+  orderId: string;
+  customerId: string;
+  customerName: string;
+  targetType: 'chef' | 'delivery' | 'customer'; // Added 'customer' for delivery rating customers
+  targetId: string;
+  targetName: string;
+  rating: number; // 1-5 stars
+  sentiment: 'compliment' | 'complaint';
+  comment: string;
+  dishIds?: string[]; // For chef feedback, which dishes they prepared
+  createdAt: Date;
+  // Dispute fields
+  isDisputed?: boolean;
+  disputeReason?: string;
+  disputedBy?: string; // ID of user who disputed (customer or employee)
+  disputeCreatedAt?: Date;
+  // Manager decision
+  managerDecision?: 'dismissed' | 'upheld';
+  managerDecisionReason?: string;
+  managerDecisionAt?: Date;
+  managerId?: string; // Manager who made the decision
 }

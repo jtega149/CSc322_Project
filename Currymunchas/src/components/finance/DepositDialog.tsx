@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Wallet } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Wallet, CreditCard } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -9,14 +9,28 @@ import { formatCurrency } from '../../lib/utils';
 interface DepositDialogProps {
   open: boolean;
   onClose: () => void;
-  onDeposit: (amount: number) => void;
+  onDeposit: (amount: number, paymentInfo: PaymentInfo) => Promise<void>;
   currentBalance: number;
 }
 
-export function DepositDialog({ open, onClose, onDeposit, currentBalance }: DepositDialogProps) {
-  const [amount, setAmount] = useState('');
+interface PaymentInfo {
+  cardNumber: string;
+  expiryDate: string;
+  cvv: string;
+  nameOnCard: string;
+}
 
-  const handleSubmit = () => {
+export function DepositDialog({ open, onClose, onDeposit, currentBalance }: DepositDialogProps) {
+  useEffect(() => {
+    console.log('DepositDialog open state:', open);
+  }, [open]);
+  const [amount, setAmount] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
+  const [cvv, setCvv] = useState('');
+  const [nameOnCard, setNameOnCard] = useState('');
+
+  const handleSubmit = async () => {
     const depositAmount = parseFloat(amount);
     
     if (isNaN(depositAmount) || depositAmount <= 0) {
@@ -29,9 +43,65 @@ export function DepositDialog({ open, onClose, onDeposit, currentBalance }: Depo
       return;
     }
 
-    onDeposit(depositAmount);
-    setAmount('');
-    onClose();
+    // Validate payment info
+    if (!cardNumber.trim() || !expiryDate.trim() || !cvv.trim() || !nameOnCard.trim()) {
+      alert('Please fill in all payment information');
+      return;
+    }
+
+    // Basic validation for card number (should be 16 digits)
+    const cleanedCardNumber = cardNumber.replace(/\s/g, '');
+    if (cleanedCardNumber.length !== 16 || !/^\d+$/.test(cleanedCardNumber)) {
+      alert('Please enter a valid 16-digit card number');
+      return;
+    }
+
+    // Basic validation for expiry date (MM/YY format)
+    if (!/^\d{2}\/\d{2}$/.test(expiryDate)) {
+      alert('Please enter expiry date in MM/YY format');
+      return;
+    }
+
+    // Basic validation for CVV (3-4 digits)
+    if (!/^\d{3,4}$/.test(cvv)) {
+      alert('Please enter a valid CVV (3-4 digits)');
+      return;
+    }
+
+    const paymentInfo: PaymentInfo = {
+      cardNumber: cleanedCardNumber,
+      expiryDate,
+      cvv,
+      nameOnCard: nameOnCard.trim()
+    };
+
+    try {
+      await onDeposit(depositAmount, paymentInfo);
+      // Clear form and close dialog only after successful deposit
+      setAmount('');
+      setCardNumber('');
+      setExpiryDate('');
+      setCvv('');
+      setNameOnCard('');
+      onClose();
+    } catch (error) {
+      // Error is handled in the parent component
+      // Don't close dialog on error
+    }
+  };
+
+  const formatCardNumber = (value: string) => {
+    const cleaned = value.replace(/\s/g, '');
+    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
+    return formatted.slice(0, 19); // Max 16 digits + 3 spaces
+  };
+
+  const formatExpiryDate = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length >= 2) {
+      return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
+    }
+    return cleaned;
   };
 
   const quickAmounts = [25, 50, 100, 200];
@@ -85,8 +155,65 @@ export function DepositDialog({ open, onClose, onDeposit, currentBalance }: Depo
             </div>
           </div>
 
-          <div className="text-sm text-muted-foreground">
-            Note: This is a demo. In production, this would integrate with a payment processor.
+          <div className="border-t pt-4 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <CreditCard className="w-4 h-4" />
+              Payment Information
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="nameOnCard">Name on Card</Label>
+              <Input
+                id="nameOnCard"
+                type="text"
+                placeholder="John Doe"
+                value={nameOnCard}
+                onChange={(e) => setNameOnCard(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cardNumber">Card Number</Label>
+              <Input
+                id="cardNumber"
+                type="text"
+                placeholder="1234 5678 9012 3456"
+                maxLength={19}
+                value={cardNumber}
+                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="expiryDate">Expiry Date</Label>
+                <Input
+                  id="expiryDate"
+                  type="text"
+                  placeholder="MM/YY"
+                  maxLength={5}
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(formatExpiryDate(e.target.value))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cvv">CVV</Label>
+                <Input
+                  id="cvv"
+                  type="text"
+                  placeholder="123"
+                  maxLength={4}
+                  value={cvv}
+                  onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+            <p className="font-medium mb-1">🔒 Secure Payment (Demo Mode)</p>
+            <p>This is a simulation. No real payment will be processed. Card information is not stored.</p>
           </div>
         </div>
 

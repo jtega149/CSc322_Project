@@ -25,7 +25,7 @@ export const mockChefs: Chef[] = [
     specialties: ['Italian', 'Pasta'],
     dishes: ['dish1', 'dish2', 'dish3'],
     averageRating: 4.7
-  },
+  }, 
   {
     id: 'chef2',
     email: 'chef2@restaurant.com',

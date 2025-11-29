@@ -63,7 +63,7 @@ export function DishCard({ dish, isVIP = false, onAddToCart, showChef = false }:
       <CardFooter className="flex items-center justify-between">
         <span className="text-lg">{formatCurrency(dish.price)}</span>
         {onAddToCart && canOrder && dish.isAvailable && (
-          <Button onClick={() => onAddToCart(dish)} size="sm">
+          <Button onClick={() => onAddToCart(dish)} size="sm" className="cursor-pointer">
             Add to Cart
           </Button>
         )}

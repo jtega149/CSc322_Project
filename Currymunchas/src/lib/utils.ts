@@ -6,7 +6,8 @@ import { Customer, Dish, Order } from '../types';
 export function shouldBeVIP(customer: Customer): boolean {
   return (
     (customer.totalSpent >= 100 || customer.orderCount >= 3) &&
-    customer.warnings.length === 0
+    customer.warnings.length === 0 &&
+    !customer.isVIP // Only check if not already VIP
   );
 }
 
@@ -86,8 +87,8 @@ export function hasSufficientBalance(customer: Customer, orderTotal: number): bo
 /**
  * Calculate complaint weight (VIP complaints count double)
  */
-export function getComplaintWeight(userRole: 'customer' | 'vip'): number {
-  return userRole === 'vip' ? 2 : 1;
+export function getComplaintWeight(isVIP: boolean): number {
+  return isVIP ? 2 : 1;
 }
 
 /**

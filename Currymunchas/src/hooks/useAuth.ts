@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { mockChefs, mockDeliveryPeople, mockManager, mockCustomers } from '../lib/mockData';
-import { logInUser, signUpUser, logOutUser } from '../userService';
+import { logInUser, signUpUser, logOutUser, signUpEmployee} from '../userService';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -17,10 +17,20 @@ export function useAuth() {
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // First check the users collection (for customers, visitors, manager)
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data() as User;
-          setCurrentUser(userData);
+          setCurrentUser({ ...userData, id: user.uid });
+        } else {
+          // If not found in users, check the employees collection (for chefs and delivery)
+          const employeeDoc = await getDoc(doc(db, 'employees', user.uid));
+          if (employeeDoc.exists()) {
+            const employeeData = employeeDoc.data() as User;
+            setCurrentUser({ ...employeeData, id: user.uid });
+          } else {
+            setCurrentUser(null);
+          }
         }
       } else {
         setCurrentUser(null);
@@ -54,12 +64,35 @@ export function useAuth() {
     return true;
   };
 
+  const refreshUser = async () => {
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (user) {
+      // First check the users collection (for customers, visitors, manager)
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as User;
+        setCurrentUser({ ...userData, id: user.uid });
+      } else {
+        // If not found in users, check the employees collection (for chefs and delivery)
+        const employeeDoc = await getDoc(doc(db, 'employees', user.uid));
+        if (employeeDoc.exists()) {
+          const employeeData = employeeDoc.data() as User;
+          setCurrentUser({ ...employeeData, id: user.uid });
+        } else {
+          setCurrentUser(null);
+        }
+      }
+    }
+  };
+
   return {
     currentUser,
     isLoading,
     login,
     logout,
     register,
+    refreshUser,
     isAuthenticated: !!currentUser
   };
 }

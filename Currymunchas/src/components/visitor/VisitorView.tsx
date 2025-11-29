@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Store, MessageCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -9,14 +9,86 @@ import { RegistrationForm } from '../auth/RegistrationForm';
 import { mockDishes, mockChefs } from '../../lib/mockData';
 import { getMostPopularDishes, getTopRatedDishes } from '../../lib/utils';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import { getAllDishes, getPublicChefs } from '../../userService';
+import { Dish, Chef } from '../../types';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 export function VisitorView() {
   const [showAuth, setShowAuth] = useState(false);
-  const popularDishes = getMostPopularDishes(mockDishes, 3);
-  const topRatedDishes = getTopRatedDishes(mockDishes, 3);
+  const [dishes, setDishes] = useState<Dish[]>([]);
+  const [chefs, setChefs] = useState<Chef[]>([]);
+  const [dishesLoading, setDishesLoading] = useState(true);
+  const [chefsLoading, setChefsLoading] = useState(true);
 
-  // Get top rated chefs
-  const topChefs = [...mockChefs].sort((a, b) => b.averageRating - a.averageRating);
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load dishes
+        setDishesLoading(true);
+        const fetchedDishes = await getAllDishes();
+        setDishes(fetchedDishes as Dish[]);
+      } catch (error: any) {
+        console.error('Error loading dishes:', error);
+        // Fallback to mock data if Firestore access fails
+        setDishes(mockDishes);
+      } finally {
+        setDishesLoading(false);
+      }
+
+      try {
+        // Load chefs
+        setChefsLoading(true);
+        const fetchedChefs = await getPublicChefs();
+        
+        // Get dish count for each chef
+        const chefsWithDishCount = await Promise.all(
+          fetchedChefs.map(async (chef) => {
+            try {
+              const dishesRef = collection(db, 'dishes');
+              const q = query(dishesRef, where('chefId', '==', chef.id));
+              const dishesSnapshot = await getDocs(q);
+              const dishCount = dishesSnapshot.size;
+              return {
+                ...chef,
+                dishCount: dishCount // Store actual count
+              };
+            } catch (err) {
+              // If we can't get dish count, use existing dishes array length
+              return {
+                ...chef,
+                dishCount: Array.isArray(chef.dishes) ? chef.dishes.length : 0
+              };
+            }
+          })
+        );
+        
+        setChefs(chefsWithDishCount as Chef[]);
+      } catch (error: any) {
+        console.error('Error loading chefs:', error);
+        // Fallback to mock data if Firestore access fails
+        setChefs(mockChefs);
+      } finally {
+        setChefsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Get top rated chefs (sorted by average rating)
+  const topChefs = chefs.length > 0 
+    ? [...chefs].sort((a, b) => b.averageRating - a.averageRating).slice(0, 3)
+    : mockChefs.slice(0, 3);
+
+  // Get most popular and top rated dishes
+  const popularDishes = dishes.length > 0 
+    ? getMostPopularDishes(dishes, 3)
+    : getMostPopularDishes(mockDishes, 3);
+  
+  const topRatedDishes = dishes.length > 0
+    ? getTopRatedDishes(dishes, 3)
+    : getTopRatedDishes(mockDishes, 3);
 
   return (
     <div className="space-y-8">
@@ -45,7 +117,17 @@ export function VisitorView() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {popularDishes.map(dish => (
+            {dishesLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                <p>Loading dishes...</p>
+              </div>
+            ) : popularDishes.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No dishes available at the moment.</p>
+              </div>
+            ) : (
+              popularDishes.map(dish => (
               <div key={dish.id} className="flex gap-4 p-3 border rounded-lg hover:bg-muted/50">
                 <ImageWithFallback 
                   src={dish.imageUrl}
@@ -68,7 +150,8 @@ export function VisitorView() {
                   ${dish.price.toFixed(2)}
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -81,7 +164,17 @@ export function VisitorView() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {topChefs.map(chef => (
+            {chefsLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                <p>Loading chefs...</p>
+              </div>
+            ) : topChefs.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No chefs available at the moment.</p>
+              </div>
+            ) : (
+              topChefs.map(chef => (
               <div key={chef.id} className="flex items-center gap-4 p-3 border rounded-lg">
                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-2xl">
                   👨‍🍳
@@ -94,12 +187,13 @@ export function VisitorView() {
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm">⭐ {chef.averageRating.toFixed(1)}</span>
                     <span className="text-sm text-muted-foreground">
-                      ({chef.dishes.length} dishes)
+                      ({(chef as any).dishCount ?? (Array.isArray(chef.dishes) ? chef.dishes.length : 0)} dishes)
                     </span>
                   </div>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
@@ -121,7 +215,7 @@ export function VisitorView() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <MenuGrid dishes={mockDishes} isVIP={false} />
+              <MenuGrid dishes={dishes.length > 0 ? dishes : mockDishes} isVIP={false} />
             </CardContent>
           </Card>
         </TabsContent>

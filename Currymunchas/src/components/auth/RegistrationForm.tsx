@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Badge } from '../ui/badge';
 import { ChefHat, Truck } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { signUpEmployee } from '../../userService';
 
 export function RegistrationForm() {
   const [name, setName] = useState('');
@@ -47,10 +48,8 @@ export function RegistrationForm() {
     setIsLoading(true);
 
     try {
-      // In real implementation, you would pass the employee role and specialties to the backend
-      // For now, we're using the mock register function
-      const result = await register(email, password, name);
-      if (result) {
+      if (isEmployeeApplication === true) {
+        signUpEmployee(email, password, name, employeeRole, specialties)
         setSuccess(true);
         setName('');
         setEmail('');
@@ -58,8 +57,21 @@ export function RegistrationForm() {
         setConfirmPassword('');
         setSpecialties('');
         setIsEmployeeApplication(false);
-      } else {
-        setError('Registration failed. Email may already be in use.');
+        console.log("Succesfully applied for a career opportunity")
+      }
+      else {
+        const result = await register(email, password, name);
+        if (result) {
+          setSuccess(true);
+          setName('');
+          setEmail('');
+          setPassword('');
+          setConfirmPassword('');
+          setSpecialties('');
+          setIsEmployeeApplication(false);
+        } else {
+          setError('Registration failed. Email may already be in use.');
+        }
       }
     } catch (err) {
       setError('An error occurred during registration');

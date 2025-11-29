@@ -22,7 +22,7 @@ export function ShoppingCart({ customer, onCheckout }: ShoppingCartProps) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [useFreeDelivery, setUseFreeDelivery] = useState(false);
 
-  const isVIP = customer.role === 'vip';
+  const isVIP = customer.isVIP || false;
   const hasAvailableFreeDelivery = customer.freeDeliveriesEarned > customer.freeDeliveriesUsed;
 
   const addItem = (dish: Dish) => {

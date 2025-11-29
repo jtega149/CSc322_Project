@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { ChatMessage } from '../../types';
-import { searchKnowledgeBase, getMockLLMResponse } from '../../lib/utils';
-import { mockKnowledgeBase } from '../../lib/mockData';
+import { searchKnowledgeBaseInFirestore, getGeminiResponse, flagKnowledgeBaseEntry } from '../../userService';
 
 interface AIChatProps {
   userId?: string;
@@ -32,47 +31,72 @@ export function AIChat({ userId }: AIChatProps) {
     setInputValue('');
     setIsLoading(true);
 
-    // Search knowledge base first
-    const kbEntry = searchKnowledgeBase(userMessage, mockKnowledgeBase);
-    
-    let response: string;
-    let source: 'knowledge_base' | 'llm';
-    let kbEntryId: string | undefined;
+    try {
+      // Search knowledge base first
+      const kbEntry = await searchKnowledgeBaseInFirestore(userMessage);
+      
+      let response: string;
+      let source: 'knowledge_base' | 'llm';
+      let kbEntryId: string | undefined;
 
-    if (kbEntry) {
-      response = kbEntry.answer;
-      source = 'knowledge_base';
-      kbEntryId = kbEntry.id;
-    } else {
-      // Fallback to mock LLM
-      response = getMockLLMResponse(userMessage);
-      source = 'llm';
+      if (kbEntry) {
+        response = kbEntry.answer;
+        source = 'knowledge_base';
+        kbEntryId = kbEntry.id;
+      } else {
+        // Fallback to Gemini LLM
+        response = await getGeminiResponse(userMessage);
+        source = 'llm';
+      }
+
+      const newMessage: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        userId,
+        message: userMessage,
+        response,
+        source,
+        knowledgeBaseEntryId: kbEntryId,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, newMessage]);
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      const errorMessage: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        userId,
+        message: userMessage,
+        response: 'Sorry, I encountered an error. Please try again.',
+        source: 'llm',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
-
-    const newMessage: ChatMessage = {
-      id: `msg_${Date.now()}`,
-      userId,
-      message: userMessage,
-      response,
-      source,
-      knowledgeBaseEntryId: kbEntryId,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, newMessage]);
-    setIsLoading(false);
   };
 
-  const handleRating = (messageId: string, rating: number) => {
+  const handleRating = async (messageId: string, rating: number) => {
     setMessages(prev => prev.map(msg => 
       msg.id === messageId ? { ...msg, userRating: rating } : msg
     ));
 
     // If rating is 0 (outrageous), flag for manager review
+    // Only allow flagging if user is logged in (visitors can't flag)
     const message = messages.find(m => m.id === messageId);
-    if (rating === 0 && message?.source === 'knowledge_base') {
-      // In production, this would flag the KB entry in the database
-      console.log('Flagged for manager review:', message.knowledgeBaseEntryId);
+    if (rating === 0 && message?.source === 'knowledge_base' && message.knowledgeBaseEntryId && userId) {
+      try {
+        await flagKnowledgeBaseEntry(message.knowledgeBaseEntryId);
+        console.log('Flagged knowledge base entry for manager review:', message.knowledgeBaseEntryId);
+      } catch (error: any) {
+        // Handle permission errors gracefully - visitors can't flag entries
+        if (error.message?.includes('permission') || error.message?.includes('Permission') || 
+            error.code === 'permission-denied' || error.code === 'PERMISSION_DENIED') {
+          console.log('Cannot flag entry (likely visitor or insufficient permissions):', error.message);
+        } else {
+          console.error('Error flagging knowledge base entry:', error);
+        }
+      }
     }
   };
 

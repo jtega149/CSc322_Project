@@ -1,4 +1,5 @@
 import { AuthProvider, useAuthContext } from './contexts/AuthContext';
+import { CartProvider } from './contexts/CartContext';
 import { Header } from './components/layout/Header';
 import { VisitorView } from './components/visitor/VisitorView';
 import { CustomerDashboard } from './components/customer/CustomerDashboard';
@@ -28,7 +29,6 @@ function AppContent() {
 
     switch (currentUser.role) {
       case 'customer':
-      case 'vip':
         return <CustomerDashboard customer={currentUser as Customer} />;
       case 'chef':
         return <ChefDashboard chef={currentUser as Chef} />;
@@ -62,7 +62,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <CartProvider>
+        <AppContent />
+      </CartProvider>
     </AuthProvider>
   );
 }

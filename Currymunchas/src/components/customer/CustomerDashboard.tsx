@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Crown, AlertTriangle, Wallet, Package, Star } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
@@ -10,26 +10,140 @@ import { Customer, Dish } from '../../types';
 import { MenuGrid } from '../menu/MenuGrid';
 import { AIChat } from '../chat/AIChat';
 import { DiscussionForum } from '../discussions/DiscussionForum';
-import { mockDishes, mockDiscussionTopics } from '../../lib/mockData';
+import { DepositPage } from '../finance/DepositPage';
+import { CheckoutPage } from '../orders/CheckoutPage';
+import { OrderHistory } from '../orders/OrderHistory';
+import { RateChefPage } from '../orders/RateChefPage';
+import { RateDeliveryPage } from '../orders/RateDeliveryPage';
+import { DisputeComplaintsTab } from '../complaints/DisputeComplaintsTab';
 import { formatCurrency, shouldBeVIP } from '../../lib/utils';
+import { useAuthContext } from '../../contexts/AuthContext';
+import { useCart } from '../../contexts/CartContext';
+import { getAllDishes } from '../../userService';
 
 interface CustomerDashboardProps {
   customer: Customer;
 }
 
 export function CustomerDashboard({ customer }: CustomerDashboardProps) {
-  const isVIP = customer.role === 'vip';
-  const progress = isVIP ? 100 : Math.min(100, (customer.totalSpent / 100) * 100);
+  const [showDepositPage, setShowDepositPage] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [dishes, setDishes] = useState<Dish[]>([]);
+  const [dishesLoading, setDishesLoading] = useState(true);
+  const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
+  const [ratingType, setRatingType] = useState<'chef' | 'delivery' | null>(null);
+  const [ordersReloadKey, setOrdersReloadKey] = useState(0);
+  const { refreshUser } = useAuthContext();
+  const { addToCart, items, getTotalItems } = useCart();
+  const isVIP = customer.isVIP || false;
+  const totalSpent = customer.totalSpent || 0;
+  const progress = isVIP ? 100 : Math.min(100, (totalSpent / 100) * 100);
   const ordersUntilVIP = Math.max(0, 3 - customer.orderCount);
-  const spendingUntilVIP = Math.max(0, 100 - customer.totalSpent);
+  const spendingUntilVIP = Math.max(0, 100 - totalSpent);
+
+  useEffect(() => {
+    const loadDishes = async () => {
+      try {
+        setDishesLoading(true);
+        const fetchedDishes = await getAllDishes();
+        setDishes(fetchedDishes as Dish[]);
+      } catch (error: any) {
+        console.error('Error loading dishes:', error);
+        // Fallback to empty array on error
+        setDishes([]);
+      } finally {
+        setDishesLoading(false);
+      }
+    };
+
+    loadDishes();
+  }, []);
 
   const handleAddToCart = (dish: Dish) => {
-    // This would be handled by parent component with actual cart state
-    console.log('Add to cart:', dish);
+    addToCart(dish);
   };
+
+  const handleDepositComplete = async () => {
+    // Refresh user data to get updated balance
+    await refreshUser();
+    setShowDepositPage(false);
+  };
+
+  const handleRateChef = (orderId: string) => {
+    setRatingOrderId(orderId);
+    setRatingType('chef');
+  };
+
+  const handleRateDelivery = (orderId: string) => {
+    setRatingOrderId(orderId);
+    setRatingType('delivery');
+  };
+
+  const handleRatingSubmitted = () => {
+    setRatingOrderId(null);
+    setRatingType(null);
+    setOrdersReloadKey(prev => prev + 1);
+  };
+
+  // Show rating pages if requested
+  if (ratingOrderId && ratingType === 'chef') {
+    return (
+      <RateChefPage
+        orderId={ratingOrderId}
+        customerId={customer.id}
+        customerName={customer.name}
+        onBack={() => {
+          setRatingOrderId(null);
+          setRatingType(null);
+        }}
+        onSubmitted={handleRatingSubmitted}
+      />
+    );
+  }
+
+  if (ratingOrderId && ratingType === 'delivery') {
+    return (
+      <RateDeliveryPage
+        orderId={ratingOrderId}
+        customerId={customer.id}
+        customerName={customer.name}
+        onBack={() => {
+          setRatingOrderId(null);
+          setRatingType(null);
+        }}
+        onSubmitted={handleRatingSubmitted}
+      />
+    );
+  }
+
+  // Show checkout page if requested
+  if (showCheckout) {
+    return (
+      <CheckoutPage
+        customer={customer}
+        onBack={() => setShowCheckout(false)}
+        onOrderComplete={async () => {
+          await refreshUser();
+          setShowCheckout(false);
+        }}
+      />
+    );
+  }
+
+  // Show deposit page if requested
+  if (showDepositPage) {
+    return (
+      <DepositPage
+        currentBalance={customer.accountBalance}
+        onBack={() => setShowDepositPage(false)}
+        onDepositComplete={handleDepositComplete}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
+
       {/* Warnings Alert */}
       {customer.warnings.length > 0 && (
         <Alert variant="destructive">
@@ -43,12 +157,12 @@ export function CustomerDashboard({ customer }: CustomerDashboardProps) {
                 </li>
               ))}
             </ul>
-            {customer.role === 'vip' && customer.warnings.length >= 2 && (
+            {customer.isVIP && customer.warnings.length >= 2 && (
               <p className="mt-2">
                 Warning: One more warning will downgrade you to regular customer status.
               </p>
             )}
-            {customer.role === 'customer' && customer.warnings.length >= 2 && (
+            {!customer.isVIP && customer.warnings.length >= 2 && (
               <p className="mt-2">
                 Warning: One more warning will result in account deregistration.
               </p>
@@ -99,7 +213,14 @@ export function CustomerDashboard({ customer }: CustomerDashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl">{formatCurrency(customer.accountBalance)}</div>
-            <Button size="sm" className="mt-4">Deposit Funds</Button>
+            <Button 
+              size="sm" 
+              type="button"
+              className="mt-4 cursor-pointer"
+              onClick={() => setShowDepositPage(true)}
+            >
+              Deposit Funds
+            </Button>
           </CardContent>
         </Card>
 
@@ -114,11 +235,28 @@ export function CustomerDashboard({ customer }: CustomerDashboardProps) {
               Total orders
             </p>
             <p className="text-sm mt-2">
-              Total spent: {formatCurrency(customer.totalSpent)}
+              Total spent: {formatCurrency(totalSpent)}
             </p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Checkout Button - Show when cart has items */}
+      {getTotalItems() > 0 && (
+        <Card className="bg-primary/5 border-primary">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">You have {getTotalItems()} item{getTotalItems() !== 1 ? 's' : ''} in your cart</p>
+                <p className="text-sm text-muted-foreground">Ready to checkout?</p>
+              </div>
+              <Button onClick={() => setShowCheckout(true)} size="lg" className="cursor-pointer">
+                Proceed to Checkout
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Content */}
       <Tabs defaultValue="menu" className="space-y-6">
@@ -127,42 +265,53 @@ export function CustomerDashboard({ customer }: CustomerDashboardProps) {
           <TabsTrigger value="orders">My Orders</TabsTrigger>
           <TabsTrigger value="discussions">Discussions</TabsTrigger>
           <TabsTrigger value="chat">AI Assistant</TabsTrigger>
+          <TabsTrigger value="disputes">Dispute Complaints</TabsTrigger>
         </TabsList>
 
         <TabsContent value="menu" className="space-y-6">
-          <MenuGrid 
-            dishes={mockDishes}
-            isVIP={isVIP}
-            onAddToCart={handleAddToCart}
-          />
+          {dishesLoading ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center text-muted-foreground">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p>Loading menu...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <MenuGrid 
+              dishes={dishes}
+              isVIP={isVIP}
+              onAddToCart={handleAddToCart}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="orders">
-          <Card>
-            <CardHeader>
-              <CardTitle>Order History</CardTitle>
-              <CardDescription>View and rate your past orders</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Your order history will appear here</p>
-              </div>
-            </CardContent>
-          </Card>
+          <OrderHistory 
+            customerId={customer.id} 
+            orderHistory={customer.orderHistory || []}
+            reloadKey={ordersReloadKey}
+            onRateChef={handleRateChef}
+            onRateDelivery={handleRateDelivery}
+          />
         </TabsContent>
 
         <TabsContent value="discussions">
+
           <DiscussionForum
-            topics={mockDiscussionTopics}
             currentUserId={customer.id}
-            onCreateTopic={() => console.log('Create topic')}
-            onViewTopic={(id) => console.log('View topic', id)}
+            currentUserName={customer.name}
+            currentUserRole={customer.role}
           />
         </TabsContent>
 
         <TabsContent value="chat">
           <AIChat userId={customer.id} />
+        </TabsContent>
+
+        <TabsContent value="disputes">
+          <DisputeComplaintsTab userId={customer.id} />
         </TabsContent>
       </Tabs>
     </div>
