@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, React} from 'react';
 import { Send, MessageCircle, ThumbsUp, ThumbsDown, Flag } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,6 +7,11 @@ import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { ChatMessage } from '../../types';
 import { searchKnowledgeBaseInFirestore, getGeminiResponse, flagKnowledgeBaseEntry } from '../../userService';
+import { ElevenLabsClient, play } from '@elevenlabs/elevenlabs-js';
+import { audio } from '@elevenlabs/elevenlabs-js/api/resources/dubbing';
+import { FaCircleStop, FaMicrophone } from 'react-icons/fa6';
+
+const API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY;
 
 interface AIChatProps {
   userId?: string;
@@ -17,12 +22,122 @@ export function AIChat({ userId }: AIChatProps) {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedURL, setRecordedURL] = useState<string | null>(null);
+  const mediaStream = useRef<MediaStream | null>(null); // Media stream for recording
+  const mediaRecorder = useRef<MediaRecorder | null>(null); // MediaRecorder instance
+  const chunks = useRef<Blob[]>([]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const textToSpeech = async (text: string) => {
+    try{
+      const elevenlabs = new ElevenLabsClient({ apiKey: API_KEY });
+      const audioStream = await elevenlabs.textToSpeech.convert(
+        'gZL79pBTvaNfNPOCXh6n', // voice_id
+        {
+          text: text,
+          modelId: 'eleven_multilingual_v2',
+          outputFormat: 'mp3_44100_128', // output_format
+        }
+      );
+      // Convert ReadableStream to ArrayBuffer
+      const arrayBuffer = await new Response(audioStream).arrayBuffer();
+      // Create Blob from ArrayBuffer
+      const audioBlob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      // Create URL and play
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      // Clean up after playing
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      await audio.play();
+    } catch (error) {
+      console.error('TTS Error:', error);
+    }
+  }
+
+  const speechToText = async (audioUrl?: string) => {
+    // Placeholder for future STT implementation
+    try{
+      const url = audioUrl || recordedURL;
+      if (!url){
+        throw new Error("Bro theres no recorded URL")
+      }
+      
+      const elevenlabs = new ElevenLabsClient({ apiKey: API_KEY });
+      const response = await fetch(url) //Getting that recording
+      const audioBlob = new Blob([await response.arrayBuffer()], { type: 'audio/mp3' }); // Make recording into some file thingy 
+      const transcription = await elevenlabs.speechToText.convert({
+        file: audioBlob,
+        modelId: "scribe_v1", // Model to use
+        tagAudioEvents: true, // Tag audio events like laughter, applause, etc.
+        languageCode: "eng", // Language of the audio file. If set to null, the model will detect the language automatically.
+        diarize: true, // Whether to annotate who is speaking
+      });
+      
+      console.log(transcription)
+      setInputValue(transcription.text) 
+      // NEED TO set transcription to current chat 
+
+    } catch (error) {
+      console.error('STT Error:', error);
+    }
+  }
+
+  const startRecording = async () => {
+    setIsRecording(true);
+    // Placeholder for starting recording logic
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); // Request microphone access
+      mediaStream.current = stream; // Store the media stream
+      mediaRecorder.current = new MediaRecorder(stream); // Create MediaRecorder instance
+      mediaRecorder.current.ondataavailable = (event) => {
+        if (event.data.size > 0){
+          chunks.current.push(event.data)
+        }
+      };
+      mediaRecorder.current.onstop = () => {
+        const recordedBlob = new Blob(chunks.current, {type: 'audio/mp3'})
+        const url = URL.createObjectURL(recordedBlob)
+        setRecordedURL(url)
+
+        chunks.current = []
+        
+        // Call speechToText with the URL once it's ready
+        speechToText(url);
+      }
+      mediaRecorder.current.start()
+
+    } catch(error) {
+      console.error('Recording Error:', error);
+    }
+  }
+
+  const stopRecording = async () => {
+    setIsRecording(false);
+    // Placeholder for stopping recording logic
+    try{
+      if(mediaRecorder.current) {
+        mediaRecorder.current.stop();
+        if (mediaStream.current){
+          mediaStream.current.getTracks().forEach( (track) => track.stop() )
+        }
+        // speechToText will be called in the onstop handler once the URL is ready
+
+      } else {
+        console.log("No mediaRecorder.current found")
+      }
+    } catch (error) {
+      console.log("Error stopping recording:", error)
+    }
+  }
 
   const handleSend = async () => {
     if (!inputValue.trim()) return;
@@ -139,6 +254,10 @@ export function AIChat({ userId }: AIChatProps) {
                 <div className="flex flex-col items-start gap-2">
                   <div className="bg-muted rounded-lg px-4 py-2 max-w-[80%]">
                     {msg.response}
+                    <br></br>
+                    <button onClick={() => textToSpeech(msg.response)} className="text-xs text-blue-500 hover:underline cursor-pointer mt-2 right-0">
+                      Play TTS
+                    </button>
                   </div>
                   
                   <div className="flex items-center gap-2">
@@ -174,6 +293,7 @@ export function AIChat({ userId }: AIChatProps) {
                       </Badge>
                     )}
                   </div>
+                  
                 </div>
               </div>
             ))}
@@ -201,6 +321,15 @@ export function AIChat({ userId }: AIChatProps) {
               onKeyPress={handleKeyPress}
               disabled={isLoading}
             />
+            {isRecording ? (
+              <Button onClick={stopRecording} disabled={isLoading} className="cursor-pointer">
+                <FaCircleStop className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button onClick={startRecording} disabled={isLoading} className="cursor-pointer">
+                <FaMicrophone className="w-4 h-4" />
+              </Button>
+            )}
             <Button onClick={handleSend} disabled={isLoading || !inputValue.trim()}>
               <Send className="w-4 h-4" />
             </Button>
