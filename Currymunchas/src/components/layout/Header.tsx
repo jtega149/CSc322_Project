@@ -47,7 +47,7 @@ export function Header() {
           <div className="flex items-center gap-3">
             <Store className="w-8 h-8 text-primary" />
             <div>
-              <h1 className="text-xl">AI Restaurant</h1>
+              <h1 className="text-xl">Curry Muncha's AI Restaurant</h1>
               <p className="text-xs text-muted-foreground">Smart Ordering System</p>
             </div>
           </div>

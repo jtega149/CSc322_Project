@@ -48,12 +48,6 @@ function AppContent() {
         {renderDashboard()}
       </main>
       <footer className="border-t mt-12 py-6">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>AI Restaurant - Smart Ordering & Delivery System</p>
-          <p className="mt-2">
-            Built with React + TypeScript | Ready for Firebase Integration
-          </p>
-        </div>
       </footer>
     </div>
   );

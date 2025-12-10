@@ -97,7 +97,7 @@ export function VisitorView() {
         <CardContent className="pt-6">
           <div className="text-center space-y-4">
             <Store className="w-16 h-16 mx-auto text-primary" />
-            <h1 className="text-4xl">Welcome to AI Restaurant</h1>
+            <h1 className="text-4xl">Welcome to Curry Muncha's AI Restaurant</h1>
             <p className="text-muted-foreground max-w-2xl mx-auto">
               Experience fine dining with AI-powered ordering and personalized recommendations. 
               Browse our menu, chat with our AI assistant, and register to start ordering.
@@ -111,7 +111,7 @@ export function VisitorView() {
         {/* Most Popular Dishes */}
         <Card>
           <CardHeader>
-            <CardTitle>🔥 Most Popular Dishes</CardTitle>
+            <CardTitle>Most Popular Dishes</CardTitle>
             <CardDescription>
               Fan favorites ordered by our customers
             </CardDescription>
@@ -158,7 +158,7 @@ export function VisitorView() {
         {/* Top Rated Chefs */}
         <Card>
           <CardHeader>
-            <CardTitle>👨‍🍳 Top Rated Chefs</CardTitle>
+            <CardTitle>Top Rated Chefs</CardTitle>
             <CardDescription>
               Meet our talented culinary team
             </CardDescription>

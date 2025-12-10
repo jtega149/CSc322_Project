@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, React} from 'react';
+import { useState, useRef, useEffect} from 'react';
 import { Send, MessageCircle, ThumbsUp, ThumbsDown, Flag } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
