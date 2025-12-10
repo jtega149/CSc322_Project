@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { mockChefs, mockDeliveryPeople, mockManager, mockCustomers } from '../lib/mockData';
 import { logInUser, signUpUser, logOutUser, signUpEmployee} from '../userService';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 /**
  * Mock authentication hook
  * In production, this would integrate with Firebase Auth
@@ -14,30 +14,44 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // First check the users collection (for customers, visitors, manager)
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data() as User;
-          setCurrentUser({ ...userData, id: user.uid });
-        } else {
-          // If not found in users, check the employees collection (for chefs and delivery)
-          const employeeDoc = await getDoc(doc(db, 'employees', user.uid));
-          if (employeeDoc.exists()) {
-            const employeeData = employeeDoc.data() as User;
-            setCurrentUser({ ...employeeData, id: user.uid });
-          } else {
+    if (!auth || !db) {
+      console.warn('Firebase not configured, using mock mode');
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          try {
+            // First check the users collection (for customers, visitors, manager)
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            if (userDoc.exists()) {
+              const userData = userDoc.data() as User;
+              setCurrentUser({ ...userData, id: user.uid });
+            } else {
+              // If not found in users, check the employees collection (for chefs and delivery)
+              const employeeDoc = await getDoc(doc(db, 'employees', user.uid));
+              if (employeeDoc.exists()) {
+                const employeeData = employeeDoc.data() as User;
+                setCurrentUser({ ...employeeData, id: user.uid });
+              } else {
+                setCurrentUser(null);
+              }
+            }
+          } catch (error) {
+            console.warn('Error fetching user data:', error);
             setCurrentUser(null);
           }
+        } else {
+          setCurrentUser(null);
         }
-      } else {
-        setCurrentUser(null);
-      }
+        setIsLoading(false);
+      });
+      return unsubscribe;
+    } catch (error) {
+      console.warn('Firebase Auth initialization error:', error);
       setIsLoading(false);
-    });
-    return unsubscribe;
+    }
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -65,7 +79,9 @@ export function useAuth() {
   };
 
   const refreshUser = async () => {
-    const auth = getAuth();
+    if (!auth || !db) {
+      return;
+    }
     const user = auth.currentUser;
     if (user) {
       // First check the users collection (for customers, visitors, manager)
