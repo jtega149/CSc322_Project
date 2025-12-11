@@ -69,21 +69,10 @@ export function LoginForm() {
               required
             />
           </div>
-
-          <div className="text-sm text-muted-foreground">
-            <p>Demo accounts:</p>
-            <ul className="mt-2 space-y-1">
-              <li>Manager: manager@restaurant.com</li>
-              <li>Chef: chef1@restaurant.com</li>
-              <li>Delivery: delivery1@restaurant.com</li>
-              <li>VIP Customer: john@example.com</li>
-              <li>Customer: sarah@example.com</li>
-            </ul>
-          </div>
         </CardContent>
 
         <CardFooter>
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full mt-4" disabled={isLoading}>
             {isLoading ? 'Logging in...' : 'Login'}
           </Button>
         </CardFooter>
