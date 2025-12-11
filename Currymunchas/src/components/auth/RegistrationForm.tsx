@@ -4,7 +4,6 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Switch } from '../ui/switch';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Badge } from '../ui/badge';
 import { ChefHat, Truck } from 'lucide-react';
@@ -122,18 +121,52 @@ export function RegistrationForm() {
                 Apply as a chef or delivery person
               </p>
             </div>
-            <Switch
+            <button
+              type="button"
               id="employee-toggle"
-              checked={isEmployeeApplication}
-              onCheckedChange={setIsEmployeeApplication}
-              className="cursor-pointer border-gray-300"
-            />
+              role="switch"
+              aria-checked={isEmployeeApplication}
+              onClick={() => setIsEmployeeApplication(!isEmployeeApplication)}
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                height: '24px',
+                width: '44px',
+                flexShrink: 0,
+                cursor: 'pointer',
+                borderRadius: '9999px',
+                border: '2px solid transparent',
+                backgroundColor: isEmployeeApplication ? '#030213' : '#d1d5db',
+                transition: 'background-color 0.2s',
+                outline: 'none',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow = '0 0 0 2px rgba(3, 2, 19, 0.2)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <span
+                style={{
+                  pointerEvents: 'none',
+                  display: 'block',
+                  height: '20px',
+                  width: '20px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#ffffff',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                  transform: isEmployeeApplication ? 'translateX(20px)' : 'translateX(2px)',
+                  transition: 'transform 0.2s',
+                }}
+              />
+            </button>
           </div>
 
           {/* Employee Role Selection */}
           {isEmployeeApplication && (
             <div className="space-y-3">
-              <Label>Select Role</Label>
+              <Label className="mb-4">Select Role</Label>
               <RadioGroup 
                 value={employeeRole} 
                 onValueChange={(value) => setEmployeeRole(value as 'chef' | 'delivery')}
@@ -143,11 +176,15 @@ export function RegistrationForm() {
                   <RadioGroupItem 
                     value="chef" 
                     id="chef" 
-                    className="peer sr-only" 
+                    className="peer sr-only absolute opacity-0 pointer-events-none" 
                   />
                   <Label
                     htmlFor="chef"
-                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    className={`flex flex-col items-center justify-between rounded-md border-2 border-muted p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors ${
+                      employeeRole === 'chef' 
+                        ? 'bg-muted' 
+                        : 'bg-popover'
+                    }`}
                   >
                     <ChefHat className="mb-3 h-6 w-6" />
                     <span>Chef</span>
@@ -157,11 +194,15 @@ export function RegistrationForm() {
                   <RadioGroupItem 
                     value="delivery" 
                     id="delivery" 
-                    className="peer sr-only" 
+                    className="peer sr-only absolute opacity-0 pointer-events-none" 
                   />
                   <Label
                     htmlFor="delivery"
-                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    className={`flex flex-col items-center justify-between rounded-md border-2 border-muted p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors ${
+                      employeeRole === 'delivery' 
+                        ? 'bg-muted' 
+                        : 'bg-popover'
+                    }`}
                   >
                     <Truck className="mb-3 h-6 w-6" />
                     <span>Delivery</span>
@@ -251,7 +292,7 @@ export function RegistrationForm() {
         </CardContent>
 
         <CardFooter>
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full mt-4" disabled={isLoading}>
             {isLoading ? 'Submitting...' : 'Submit Application'}
           </Button>
         </CardFooter>
